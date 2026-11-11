@@ -154,11 +154,13 @@ def add_ratings(snapshot, api_key):
     if not api_key:
         print('OMDB_API_KEY missing; ratings will remain unavailable.')
         return
+    stats = {'eligible': 0, 'imdb': 0, 'rt': 0, 'omdb_missing': 0}
     for kind in ('movies', 'shows'):
         for item in snapshot[kind]:
             imdb_id = item.get('id', '')
             if not re.fullmatch(r'tt\d+', imdb_id):
                 continue
+            stats['eligible'] += 1
             try:
                 query = urllib.parse.urlencode({'apikey': api_key, 'i': imdb_id})
                 req = urllib.request.Request('https://www.omdbapi.com/?' + query,
@@ -166,20 +168,24 @@ def add_ratings(snapshot, api_key):
                 with urllib.request.urlopen(req, timeout=15) as response:
                     info = json.loads(response.read())
                 if info.get('Response') != 'True':
+                    stats['omdb_missing'] += 1
                     continue
                 score = info.get('imdbRating')
                 if score and score != 'N/A':
                     item['imdbRating'] = score
+                    stats['imdb'] += 1
                 for rating in info.get('Ratings', []):
                     if rating.get('Source') == 'Rotten Tomatoes':
                         value = rating.get('Value', '')
                         if re.fullmatch(r'\d{1,3}%', value):
                             item['rottenTomatoes'] = value
+                            stats['rt'] += 1
                 # OMDb does not reliably provide an RT title URL.
                 # Link to a title search rather than guessing a slug.
             except (urllib.error.URLError, TimeoutError, ValueError) as exc:
                 print(f'Ratings unavailable for {imdb_id}: {type(exc).__name__}')
             time.sleep(0.06)
+    print('Ratings coverage: '+', '.join(f'{k}={v}' for k,v in stats.items()))
 
 
 def main():
