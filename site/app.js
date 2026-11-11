@@ -115,12 +115,13 @@
     const imdb = item.imdbRating && /^\d+(?:\.\d+)?$/.test(String(item.imdbRating)) ? item.imdbRating+'/10' : 'N/A';
     const rt = item.rottenTomatoes && /^\d{1,3}%$/.test(String(item.rottenTomatoes)) ? item.rottenTomatoes : 'N/A';
     const imdbUrl = /^tt\d+$/.test(item.id) ? 'https://www.imdb.com/title/'+encodeURIComponent(item.id)+'/' : null;
-    const rtUrl = 'https://www.rottentomatoes.com/search?search='+encodeURIComponent(item.title);
+    const rtDirect = typeof item.rottenTomatoesUrl === 'string' && /^https:\/\/www\.rottentomatoes\.com\/(?:m|tv)\/[a-zA-Z0-9_/-]+$/.test(item.rottenTomatoesUrl);
+    const rtUrl = rtDirect ? item.rottenTomatoesUrl : 'https://www.rottentomatoes.com/search?search='+encodeURIComponent(item.title);
     return '<div class="detail-metric" style="display:flex;gap:22px;flex-wrap:wrap;align-items:center">'+
       '<div><div class="detail-label">IMDb</div><div style="font-size:1.4rem;font-weight:800;margin-top:5px">★ '+esc(imdb)+'</div>'+
       (imdbUrl?'<a class="detail-link" href="'+imdbUrl+'" target="_blank" rel="noopener noreferrer">IMDb ↗</a>':'')+'</div>'+
       '<div><div class="detail-label">Rotten Tomatoes · Critics</div><div style="font-size:1.4rem;font-weight:800;margin-top:5px">🍅 '+esc(rt)+'</div>'+
-      '<a class="detail-link" href="'+rtUrl+'" target="_blank" rel="noopener noreferrer">Find on Rotten Tomatoes ↗</a></div></div>';
+      '<a class="detail-link" href="'+rtUrl+'" target="_blank" rel="noopener noreferrer">'+(rtDirect?'View on Rotten Tomatoes ↗':'Find on Rotten Tomatoes ↗')+'</a></div></div>';
   }
   function openDetail(kind,id){
     const item=(kind==='show'?showById:movieById).get(id);
