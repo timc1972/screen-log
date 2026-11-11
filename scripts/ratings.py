@@ -17,6 +17,7 @@ import urllib.parse
 import urllib.request
 import zipfile
 from datetime import date, datetime, timezone
+from html.parser import HTMLParser
 from pathlib import Path
 
 CACHE = Path(__file__).resolve().parent / 'ratings-cache.json'
@@ -202,10 +203,111 @@ def add_wikidata_links(snapshot, cache):
     print(f'Wikidata RT links: newly linked={resolved}, batches={batches}')
 
 
+
+class RTScorecardParser(HTMLParser):
+    """Read only the scorecard JSON from a canonical Rotten Tomatoes page."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=False)
+        self.inside = False
+        self.complete = False
+        self.fragments = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag == 'script' and dict(attrs).get('id') == 'media-scorecard-json':
+            self.inside = True
+
+    def handle_data(self, data):
+        if self.inside:
+            self.fragments.append(data)
+
+    def handle_endtag(self, tag):
+        if tag == 'script' and self.inside:
+            self.inside = False
+            self.complete = True
+
+
+def parse_tv_critic_score(page):
+    """Return (scorecard_found, score); score=None means no series score.
+
+    Critic score is the RT series-wide Avg. Tomatometer, never the audience
+    Popcornmeter or an individual season's score.
+    """
+    parser = RTScorecardParser()
+    parser.feed(page)
+    if not parser.complete:
+        return False, None
+    data = json.loads(''.join(parser.fragments))
+    media_type = (data.get('overlay') or {}).get('mediaType')
+    if media_type and media_type not in ('TvSeries', 'TVSeries'):
+        return True, None
+    score = (data.get('criticsScore') or {}).get('score')
+    if score is None or score == '':
+        return True, None
+    value = str(score)
+    if not re.fullmatch(r'\\d{1,3}', value) or int(value) > 100:
+        return True, None
+    return True, value + '%'
+
+
+def add_tv_rt_scores(snapshot, cache):
+    """Fetch cached TV series scores from their already verified RT URLs.
+
+    Limit rate and abort on access restrictions; never clear a saved score.
+    """
+    stats = {'attempted': 0, 'found': 0, 'no_score': 0, 'unreadable': 0}
+    for item in snapshot.get('shows', []):
+        imdb = str(item.get('id') or '')
+        record = cache.setdefault(imdb, {})
+        url = record.get('rottenTomatoesUrl') or ''
+        if not re.fullmatch(r'https://www\\.rottentomatoes\\.com/tv/[a-zA-Z0-9_-]+', url):
+            continue
+        if within_days(record.get('rtTvCheckedOn'), 14):
+            continue
+        if stats['attempted'] >= 110:
+            break
+        stats['attempted'] += 1
+        request = urllib.request.Request(url, headers={
+            'User-Agent': 'Mozilla/5.0 (compatible; ScreenLogPersonalSite/1.0)',
+            'Accept': 'text/html,application/xhtml+xml',
+            'Accept-Language': 'en-US,en;q=0.9',
+        })
+        try:
+            with urllib.request.urlopen(request, timeout=15) as response:
+                final_url = urllib.parse.urlparse(response.geturl())
+                if final_url.hostname != 'www.rottentomatoes.com':
+                    raise ValueError('Unexpected RT redirect host')
+                page = response.read(3_000_001)
+                if len(page) > 3_000_000:
+                    raise ValueError('RT page exceeds size limit')
+            complete, score = parse_tv_critic_score(page.decode('utf-8', 'replace'))
+            if not complete:
+                stats['unreadable'] += 1
+                continue
+            if score:
+                record['rottenTomatoes'] = score
+                stats['found'] += 1
+            else:
+                stats['no_score'] += 1
+            record['rtTvCheckedOn'] = TODAY
+        except urllib.error.HTTPError as exc:
+            print(f'RT TV score retrieval HTTP {exc.code} for {imdb}')
+            if exc.code in (403, 429):
+                print('RT TV score lookup paused due to access restriction; scores preserved.')
+                break
+            stats['unreadable'] += 1
+        except (urllib.error.URLError, TimeoutError, ValueError, OSError) as exc:
+            print(f'RT TV score retrieval issue for {imdb}: {type(exc).__name__}')
+            stats['unreadable'] += 1
+        time.sleep(0.25)
+    print('RT TV series critic scores: ' + ', '.join(f'{k}={v}' for k, v in stats.items()))
+
+
 def enrich(snapshot, omdb_key):
     cache = load_cache()
     add_omdb(snapshot, cache, omdb_key)
     add_wikidata_links(snapshot, cache)
+    add_tv_rt_scores(snapshot, cache)
     stats = {'imdb': 0, 'rt': 0, 'links': 0}
     for kind in ('movies', 'shows'):
         for item in snapshot[kind]:

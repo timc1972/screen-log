@@ -120,7 +120,7 @@
     return '<div class="detail-metric" style="display:flex;gap:22px;flex-wrap:wrap;align-items:center">'+
       '<div><div class="detail-label">IMDb</div><div style="font-size:1.4rem;font-weight:800;margin-top:5px">★ '+esc(imdb)+'</div>'+
       (imdbUrl?'<a class="detail-link" href="'+imdbUrl+'" target="_blank" rel="noopener noreferrer">IMDb ↗</a>':'')+'</div>'+
-      '<div><div class="detail-label">Rotten Tomatoes · Critics</div><div style="font-size:1.4rem;font-weight:800;margin-top:5px">🍅 '+esc(rt)+'</div>'+
+      '<div><div class="detail-label">'+(item.kind==='show'?'Rotten Tomatoes · Series Avg.':'Rotten Tomatoes · Critics')+'</div><div style="font-size:1.4rem;font-weight:800;margin-top:5px">🍅 '+esc(rt)+'</div>'+
       '<a class="detail-link" href="'+rtUrl+'" target="_blank" rel="noopener noreferrer">'+(rtDirect?'View on Rotten Tomatoes ↗':'Find on Rotten Tomatoes ↗')+'</a></div></div>';
   }
   function openDetail(kind,id){
