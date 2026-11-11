@@ -11,6 +11,7 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
+from ratings import enrich
 
 ROOT=Path(__file__).resolve().parent.parent
 DATA=ROOT/'site'/'data.js'
@@ -149,125 +150,6 @@ def build(movies_history,episode_history,previous):
             'live':True,'movies':output_movies,'shows':output_shows}
 
 
-def add_ratings(snapshot, api_key):
-    """Enrich titles using OMDb. Never expose the key in published data."""
-    if not api_key:
-        print('OMDB_API_KEY missing; ratings will remain unavailable.')
-        return
-    stats = {'eligible': 0, 'imdb': 0, 'rt': 0, 'omdb_missing': 0}
-    for kind in ('movies', 'shows'):
-        for item in snapshot[kind]:
-            imdb_id = item.get('id', '')
-            if not re.fullmatch(r'tt\d+', imdb_id):
-                continue
-            stats['eligible'] += 1
-            try:
-                query = urllib.parse.urlencode({'apikey': api_key, 'i': imdb_id})
-                req = urllib.request.Request('https://www.omdbapi.com/?' + query,
-                                             headers={'User-Agent': 'ScreenLogPersonalSite/1.0'})
-                with urllib.request.urlopen(req, timeout=15) as response:
-                    info = json.loads(response.read())
-                if info.get('Response') != 'True':
-                    stats['omdb_missing'] += 1
-                    continue
-                score = info.get('imdbRating')
-                if score and score != 'N/A':
-                    item['imdbRating'] = score
-                    stats['imdb'] += 1
-                for rating in info.get('Ratings', []):
-                    if rating.get('Source') == 'Rotten Tomatoes':
-                        value = rating.get('Value', '')
-                        if re.fullmatch(r'\d{1,3}%', value):
-                            item['rottenTomatoes'] = value
-                            stats['rt'] += 1
-                # OMDb does not reliably provide an RT title URL.
-                # Link to a title search rather than guessing a slug.
-            except (urllib.error.URLError, TimeoutError, ValueError) as exc:
-                print(f'Ratings unavailable for {imdb_id}: {type(exc).__name__}')
-            time.sleep(0.06)
-    print('Ratings coverage: '+', '.join(f'{k}={v}' for k,v in stats.items()))
-
-
-
-def rt_title_key(value):
-    return re.sub(r'[^a-z0-9]', '', str(value or '').lower())
-
-
-def resolve_rt_link(item, kind):
-    """Use RT search metadata; never guess a title slug or link an ambiguous match."""
-    query = urllib.parse.urlencode({'searchQuery': item['title']})
-    url = 'https://www.rottentomatoes.com/napi/search/all?' + query
-    req = urllib.request.Request(url, headers={
-        'User-Agent': 'Mozilla/5.0 (compatible; ScreenLog/1.0)',
-        'Accept': 'application/json',
-    })
-    with urllib.request.urlopen(req, timeout=12) as response:
-        payload = json.loads(response.read(1_000_000))
-    if not isinstance(payload, dict):
-        return None
-    group_keys = ('movies', 'movie') if kind == 'movies' else ('tvSeries', 'tv', 'tvShows', 'series')
-    entries = []
-    for key in group_keys:
-        value = payload.get(key, [])
-        if isinstance(value, list):
-            entries.extend(value)
-    title_key = rt_title_key(item['title'])
-    year = str(item.get('year') or '')
-    candidates = []
-    for entry in entries:
-        if not isinstance(entry, dict):
-            continue
-        name = entry.get('name') or entry.get('title') or ''
-        if rt_title_key(name) != title_key:
-            continue
-        path = entry.get('url') or entry.get('vanity') or entry.get('vanityUrl') or ''
-        if not isinstance(path, str):
-            continue
-        if path.startswith('https://www.rottentomatoes.com/'):
-            path = urllib.parse.urlparse(path).path
-        if not re.fullmatch(r'/(?:m|tv)/[a-zA-Z0-9_/-]+/?', path):
-            continue
-        if not path.startswith('/m/' if kind == 'movies' else '/tv/'):
-            continue
-        candidate_year = str(entry.get('year') or entry.get('releaseYear') or entry.get('startYear') or '')
-        if year and candidate_year and year != candidate_year:
-            continue
-        candidates.append(('https://www.rottentomatoes.com' + path.rstrip('/'), bool(year and candidate_year == year)))
-    candidates = list(dict.fromkeys(candidates))
-    if len(candidates) == 1:
-        return candidates[0][0]
-    year_matches = [url for url, matches_year in candidates if matches_year]
-    if len(year_matches) == 1:
-        return year_matches[0]
-    return None
-
-
-def add_rt_links(snapshot):
-    stats = {'linked': 0, 'unresolved': 0, 'blocked': 0}
-    blocked = False
-    for kind in ('movies', 'shows'):
-        for item in snapshot[kind]:
-            if blocked:
-                break
-            try:
-                link = resolve_rt_link(item, kind)
-                if link:
-                    item['rottenTomatoesUrl'] = link
-                    stats['linked'] += 1
-                else:
-                    stats['unresolved'] += 1
-            except urllib.error.HTTPError as exc:
-                if exc.code in (403, 429):
-                    blocked = True
-                    stats['blocked'] += 1
-                    print('Rotten Tomatoes search access restricted; retaining search fallback.')
-                else:
-                    stats['unresolved'] += 1
-            except (urllib.error.URLError, TimeoutError, ValueError, OSError):
-                stats['unresolved'] += 1
-            time.sleep(0.12)
-    print('Rotten Tomatoes direct links: ' + ', '.join(f'{k}={v}' for k, v in stats.items()))
-
 def main():
     client_id=os.getenv('TRAKT_CLIENT_ID','').strip()
     if not client_id:
@@ -279,8 +161,7 @@ def main():
     if not mh or not eh:
         raise RuntimeError('Trakt returned empty or incomplete watch history. Existing site data is preserved.')
     new=build(mh,eh,prev)
-    add_ratings(new, os.getenv('OMDB_API_KEY','').strip())
-    add_rt_links(new)
+    enrich(new, os.getenv('OMDB_API_KEY','').strip())
     before=len(prev.get('movies',[]))+sum(len(s['episodes']) for s in prev.get('shows',[]))
     after=len(new['movies'])+sum(len(s['episodes']) for s in new['shows'])
     # Safety guard for an accidental missing page, or API/profile access regression.
