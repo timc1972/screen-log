@@ -33,6 +33,29 @@ jobs:
           key: screenlog-ratings-v1-${{ github.run_id }}
           restore-keys: |
             screenlog-ratings-v1-
+      - name: Check whether ratings need recovery
+        id: rating-check
+        run: |
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+          try:
+              data = json.loads(Path('scripts/ratings-cache.json').read_text())
+              has_ratings = any(isinstance(v, dict) and (v.get('imdbRating') or v.get('rottenTomatoes')) for v in data.values())
+          except (OSError, ValueError):
+              has_ratings = False
+          print('needed=' + ('false' if has_ratings else 'true'))
+          PY
+      - name: Download previous known-good ratings
+        if: ${{ steps.rating-check.outputs.needed == 'true' }}
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: github-pages
+          repository: timc1972/screen-log
+          run-id: 43067472840
+          github-token: ${{ github.token }}
+          path: .ratings-bootstrap
       - name: Validate sync code
         run: python -m py_compile scripts/sync_trakt.py scripts/ratings.py
       - name: Update watch history from Trakt

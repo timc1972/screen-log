@@ -38,16 +38,24 @@ def fetch_good_ratings():
         'User-Agent': UA,
     })
     try:
-        with urllib.request.urlopen(req, timeout=45) as response:
-            blob = response.read(45_000_001)
-        if len(blob) > 45_000_000:
-            raise ValueError('GitHub Pages artifact too large to restore')
-        with zipfile.ZipFile(io.BytesIO(blob)) as archive:
-            tar_name = next(n for n in archive.namelist() if n.endswith('artifact.tar'))
-            with tarfile.open(fileobj=io.BytesIO(archive.read(tar_name)), mode='r:*') as bundle:
+        local_archive = Path(__file__).resolve().parent.parent / '.ratings-bootstrap' / 'artifact.tar'
+        if local_archive.is_file():
+            print('Ratings recovery: using downloaded GitHub Actions artifact.')
+            with tarfile.open(local_archive, mode='r:*') as bundle:
                 member = next(m for m in bundle.getmembers()
                               if m.name.lstrip('./') == 'data.js' and m.isfile())
                 raw = bundle.extractfile(member).read().decode('utf-8')
+        else:
+            with urllib.request.urlopen(req, timeout=45) as response:
+                blob = response.read(45_000_001)
+            if len(blob) > 45_000_000:
+                raise ValueError('GitHub Pages artifact too large to restore')
+            with zipfile.ZipFile(io.BytesIO(blob)) as archive:
+                tar_name = next(n for n in archive.namelist() if n.endswith('artifact.tar'))
+                with tarfile.open(fileobj=io.BytesIO(archive.read(tar_name)), mode='r:*') as bundle:
+                    member = next(m for m in bundle.getmembers()
+                                  if m.name.lstrip('./') == 'data.js' and m.isfile())
+                    raw = bundle.extractfile(member).read().decode('utf-8')
         prefix = 'window.SCREENLOG_DATA = '
         if not raw.startswith(prefix):
             raise ValueError('Unexpected ScreenLog Pages data format')
@@ -75,6 +83,11 @@ def load_cache():
             data = json.loads(CACHE.read_text(encoding='utf-8'))
             if isinstance(data, dict):
                 print(f'Ratings cache loaded: {len(data)} titles')
+                if not any(isinstance(v, dict) and (v.get('imdbRating') or v.get('rottenTomatoes'))
+                           for v in data.values()):
+                    restored = fetch_good_ratings()
+                    for ident, fields in restored.items():
+                        data.setdefault(ident, {}).update(fields)
                 return data
         except (OSError, ValueError):
             print('Ratings cache unreadable; attempting recovery.')
