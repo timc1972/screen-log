@@ -157,7 +157,7 @@ def add_ratings(snapshot, api_key):
     for kind in ('movies', 'shows'):
         for item in snapshot[kind]:
             imdb_id = item.get('id', '')
-            if not re.fullmatch(r'tt\\d+', imdb_id):
+            if not re.fullmatch(r'tt\d+', imdb_id):
                 continue
             try:
                 query = urllib.parse.urlencode({'apikey': api_key, 'i': imdb_id})
@@ -173,7 +173,7 @@ def add_ratings(snapshot, api_key):
                 for rating in info.get('Ratings', []):
                     if rating.get('Source') == 'Rotten Tomatoes':
                         value = rating.get('Value', '')
-                        if re.fullmatch(r'\\d{1,3}%', value):
+                        if re.fullmatch(r'\d{1,3}%', value):
                             item['rottenTomatoes'] = value
                 # OMDb does not reliably provide an RT title URL.
                 # Link to a title search rather than guessing a slug.
