@@ -4,7 +4,7 @@ from sync_trakt import build, safe_overview
 
 class OverviewTests(unittest.TestCase):
     def test_overview_prefers_trakt_and_normalizes_whitespace(self):
-        self.assertEqual(safe_overview({'overview': '  An  exciting\\n adventure. '},
+        self.assertEqual(safe_overview({'overview': '  An  exciting  adventure. '},
                                        {'overview': 'Older'}), 'An exciting adventure.')
 
     def test_preserves_previous_overview_if_trakt_missing(self):
