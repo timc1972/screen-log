@@ -192,7 +192,8 @@ def main():
     eh=history(client_id,'episodes')
     if not mh or not eh:
         raise RuntimeError('Trakt returned empty or incomplete watch history. Existing site data is preserved.')
-    new=build(mh,eh,prev)\n    add_ratings(new, os.getenv('OMDB_API_KEY','').strip())
+    new=build(mh,eh,prev)
+    add_ratings(new, os.getenv('OMDB_API_KEY','').strip())
     before=len(prev.get('movies',[]))+sum(len(s['episodes']) for s in prev.get('shows',[]))
     after=len(new['movies'])+sum(len(s['episodes']) for s in new['shows'])
     # Safety guard for an accidental missing page, or API/profile access regression.
