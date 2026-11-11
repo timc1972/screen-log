@@ -112,9 +112,9 @@
     attachImages($('#activityList'));
   }
   function ratingMarkup(item){
-    const imdb = item.imdbRating && /^\\d+(?:\\.\\d+)?$/.test(String(item.imdbRating)) ? item.imdbRating+'/10' : 'N/A';
-    const rt = item.rottenTomatoes && /^\\d{1,3}%$/.test(String(item.rottenTomatoes)) ? item.rottenTomatoes : 'N/A';
-    const imdbUrl = /^tt\\d+$/.test(item.id) ? 'https://www.imdb.com/title/'+encodeURIComponent(item.id)+'/' : null;
+    const imdb = item.imdbRating && /^\d+(?:\.\d+)?$/.test(String(item.imdbRating)) ? item.imdbRating+'/10' : 'N/A';
+    const rt = item.rottenTomatoes && /^\d{1,3}%$/.test(String(item.rottenTomatoes)) ? item.rottenTomatoes : 'N/A';
+    const imdbUrl = /^tt\d+$/.test(item.id) ? 'https://www.imdb.com/title/'+encodeURIComponent(item.id)+'/' : null;
     const rtUrl = 'https://www.rottentomatoes.com/search?search='+encodeURIComponent(item.title);
     return '<div class="detail-metric" style="display:flex;gap:22px;flex-wrap:wrap;align-items:center">'+
       '<div><div class="detail-label">IMDb</div><div style="font-size:1.4rem;font-weight:800;margin-top:5px">★ '+esc(imdb)+'</div>'+
@@ -130,6 +130,7 @@
     const count=isShow?item.episodes.length:1;
     const kicker=isShow?`TV SERIES · ${count} EPISODES`:'MOVIE · WATCHED';
     let html=`<div class="detail-top"><button type="button" class="detail-close" aria-label="Close details">×</button><div class="detail-kicker">${esc(kicker)}</div><h2>${esc(item.title)}</h2></div><div class="detail-body">`;
+    html+=ratingMarkup(item);
     if(isShow){
       html+=`<p class="detail-summary">Every episode recorded for this series, grouped by season. These are watched episodes, not a guarantee that the series is complete.</p><div class="detail-metric"><div><div class="detail-number">${item.episodes.length}</div><div class="detail-label">Episodes logged</div></div><div><div class="detail-number">${new Set(item.episodes.map(e=>e.season)).size}</div><div class="detail-label">Seasons represented</div></div></div>`;
       const seasons=[...new Set(item.episodes.map(e=>e.season))].sort((a,b)=>b-a);
