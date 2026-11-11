@@ -132,8 +132,10 @@
     const kicker=isShow?`TV SERIES · ${count} EPISODES`:'MOVIE · WATCHED';
     let html=`<div class="detail-top"><button type="button" class="detail-close" aria-label="Close details">×</button><div class="detail-kicker">${esc(kicker)}</div><h2>${esc(item.title)}</h2></div><div class="detail-body">`;
     html+=ratingMarkup(item);
+    const overview = typeof item.overview === 'string' ? item.overview.trim() : '';
+    html+='<section class="detail-overview"><h3>'+(isShow?'Series overview':'Plot summary')+'</h3><p>'+esc(overview||'Summary not available yet.')+'</p></section>';
     if(isShow){
-      html+=`<p class="detail-summary">Every episode recorded for this series, grouped by season. These are watched episodes, not a guarantee that the series is complete.</p><div class="detail-metric"><div><div class="detail-number">${item.episodes.length}</div><div class="detail-label">Episodes logged</div></div><div><div class="detail-number">${new Set(item.episodes.map(e=>e.season)).size}</div><div class="detail-label">Seasons represented</div></div></div>`;
+      html+=`<div class="detail-metric"><div><div class="detail-number">${item.episodes.length}</div><div class="detail-label">Episodes logged</div></div><div><div class="detail-number">${new Set(item.episodes.map(e=>e.season)).size}</div><div class="detail-label">Seasons represented</div></div></div>`;
       const seasons=[...new Set(item.episodes.map(e=>e.season))].sort((a,b)=>b-a);
       seasons.forEach(season=>{
         html+=`<h3 class="detail-season-title">Season ${esc(season)}</h3>`;
@@ -141,7 +143,7 @@
         list.forEach(ep=>{const episodeTitle=ep.title&&ep.title!==item.title?ep.title:`Episode ${ep.episode}`;html+=`<div class="episode-item"><span class="episode-id">E${String(ep.episode).padStart(2,'0')}</span><span class="episode-title">${esc(episodeTitle)}</span><span class="episode-date">${esc(shortDate(ep.watchedAt))}</span></div>`});
       });
     }else{
-      html+=`<p class="detail-summary">This movie is recorded as watched in the archive.</p><div class="detail-metric"><div><div class="detail-label">Last watched</div><div style="margin-top:7px;font-weight:700">${esc(longDate(item.watchedAt))}</div></div></div>`;
+      html+=`<div class="detail-metric"><div><div class="detail-label">Last watched</div><div style="margin-top:7px;font-weight:700">${esc(longDate(item.watchedAt))}</div></div></div>`;
       if(item.year)html+=`<div class="detail-metric"><div class="detail-label">Release year</div><strong>${esc(item.year)}</strong></div>`;
     }
     if(/^tt\d+$/.test(id))html+=`<a class="detail-link" href="https://www.imdb.com/title/${encodeURIComponent(id)}/" target="_blank" rel="noopener">View on IMDb ↗</a>`;

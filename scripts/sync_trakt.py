@@ -74,6 +74,19 @@ def make_id(obj):
     return None
 
 
+def safe_overview(item, old):
+    """Use Trakt's synopsis; retain an older nonempty description if missing."""
+    raw = item.get('overview')
+    if not isinstance(raw, str) or not raw.strip():
+        raw = old.get('overview', '')
+    if not isinstance(raw, str):
+        return ''
+    text = ' '.join(raw.split())
+    if len(text) > 1800:
+        text = text[:1799].rsplit(' ', 1)[0] + '…'
+    return text
+
+
 def local_poster(obj,kind,key):
     images=obj.get('images') or {}
     raw=images.get('poster') if isinstance(images,dict) else None
@@ -114,9 +127,12 @@ def build(movies_history,episode_history,previous):
             movies[id]={'id':id,'title':item.get('title') or old.get('title') or id,
                         'year':str(item['year']) if item.get('year') else old.get('year'),
                         'poster':poster,'genres':item.get('genres') or old.get('genres') or [],
+                        'overview':safe_overview(item, old),
                         'watchedAt':date,'watches':1}
         else:
             movies[id]['watches']+=1
+            if not movies[id].get('overview'):
+                movies[id]['overview']=safe_overview(item, old)
             if date>movies[id]['watchedAt']:movies[id]['watchedAt']=date
     shows={}
     for row in episode_history:
@@ -131,7 +147,10 @@ def build(movies_history,episode_history,previous):
             shows[id]={'id':id,'title':item.get('title') or old.get('title') or id,
                        'year':str(item['year']) if item.get('year') else old.get('year'),
                        'poster':poster,'genres':item.get('genres') or old.get('genres') or [],
+                       'overview':safe_overview(item, old),
                        'episodes':{}}
+        elif not shows[id].get('overview'):
+            shows[id]['overview']=safe_overview(item, old)
         ep_key=(int(s),int(e))
         old_ep=next((x for x in old.get('episodes',[]) if x['season']==s and x['episode']==e),None)
         ep={'season':int(s),'episode':int(e),'title':episode.get('title') or (old_ep or {}).get('title') or '',
@@ -169,5 +188,6 @@ def main():
         raise RuntimeError(f'Refusing to replace {before} existing watched items with only {after}; existing site data is preserved.')
     DATA.write_text('window.SCREENLOG_DATA = '+json.dumps(new,ensure_ascii=False,separators=(',',':'))+';\n',encoding='utf-8')
     print(f'Screen Log synced: {len(new["movies"])} movies, {len(new["shows"])} shows, {sum(len(s["episodes"]) for s in new["shows"])} unique episodes')
+    print(f'Synopsis coverage: movies={sum(bool(m.get("overview")) for m in new["movies"])}/{len(new["movies"])}, shows={sum(bool(s.get("overview")) for s in new["shows"])}/{len(new["shows"])}')
 
 if __name__=='__main__':main()
