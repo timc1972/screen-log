@@ -245,7 +245,7 @@ def parse_tv_critic_score(page):
     if score is None or score == '':
         return True, None
     value = str(score)
-    if not re.fullmatch(r'\\d{1,3}', value) or int(value) > 100:
+    if not re.fullmatch(r'\d{1,3}', value) or int(value) > 100:
         return True, None
     return True, value + '%'
 
@@ -260,7 +260,7 @@ def add_tv_rt_scores(snapshot, cache):
         imdb = str(item.get('id') or '')
         record = cache.setdefault(imdb, {})
         url = record.get('rottenTomatoesUrl') or ''
-        if not re.fullmatch(r'https://www\\.rottentomatoes\\.com/tv/[a-zA-Z0-9_-]+', url):
+        if not re.fullmatch(r'https://www\.rottentomatoes\.com/tv/[a-zA-Z0-9_-]+', url):
             continue
         if within_days(record.get('rtTvCheckedOn'), 14):
             continue
