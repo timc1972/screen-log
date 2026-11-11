@@ -1,0 +1,19 @@
+SCREEN LOG | YOUR MOVIE & TV WEBSITE
+=================================
+
+1. Open ScreenLog_Preview.html with Chrome or Edge.
+   This is a private, offline-capable website preview.
+
+2. Browse Home / Movies / TV Shows / History.
+   Search, sort, and click on titles to inspect details.
+
+3. Like it? Read README.md for instructions to publish
+   on GitHub Pages and connect daily Trakt updates.
+
+The site is NOT published yet. The preview contains
+only sanitized viewing data from your Nuvio backup.
+
+Current snapshot: 57 movies, 431 episodes, 20 shows.
+Source: Nuvio backup dated November 11, 2026.
+
+No passwords, login tokens, or add-on settings are included.
