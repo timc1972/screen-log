@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0b0e13" />
+  <meta name="description" content="A personal watch journal. Movies watched, stories followed, and an ever-growing screen log." />
+  <title>Screen Log | @kfg72</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="site-shell">
+    <header class="site-header">
+      <a href="#home" class="brand" id="brand" aria-label="Screen Log home"><span class="brand-mark" aria-hidden="true"><span class="brand-triangle"></span></span><span>SCREEN<span class="brand-accent">LOG</span><span class="brand-period">.</span></span></a>
+      <nav class="nav" aria-label="Main navigation">
+        <button class="nav-link selected" data-view="home">Home</button>
+        <button class="nav-link" data-view="movies">Movies</button>
+        <button class="nav-link" data-view="shows">TV Shows</button>
+        <button class="nav-link" data-view="activity">History</button>
+      </nav>
+      <div class="header-actions">
+        <span class="profile-chip"><span class="profile-dot">K</span><span>@kfg72</span></span>
+        <button id="shareBtn" class="button-icon" type="button" title="Share this site" aria-label="Share this site"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3m0 0 4 4m-4-4L8 7M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg></button>
+      </div>
+    </header>
+
+    <main id="main" tabindex="-1">
+      <section id="view-home" class="view active" aria-labelledby="home-title">
+        <div class="hero">
+          <div class="hero-copy">
+            <div class="eyebrow"><span class="eyebrow-line"></span> MY MOVIE & TV JOURNAL</div>
+            <h1 id="home-title">Every story<br />leaves a <em>mark.</em></h1>
+            <p>One place for everything I've watched. The late-night favorites, the long-running shows, and the movies worth remembering.</p>
+            <div class="hero-buttons"><button class="button button-primary" data-goto="movies">Explore the collection <span aria-hidden="true">↗</span></button><button class="button button-ghost" data-goto="activity">See watch history <span aria-hidden="true">→</span></button></div>
+            <div class="hero-status"><span class="status-pulse"></span><span id="syncStatus">Viewing history snapshot</span></div>
+          </div>
+          <div class="hero-art" aria-hidden="true"><div class="hero-collage" id="heroCollage"></div><div class="hero-art-sheen"></div><div class="hero-art-caption">CURRENTLY IN THE ARCHIVE <span>✦</span></div></div>
+        </div>
+        <div id="stats" class="stats-grid" aria-label="Viewing statistics"></div>
+        <section class="content-section" aria-labelledby="recent-heading"><div class="section-head"><div><div class="section-kicker">THE LATEST</div><h2 id="recent-heading">Recently watched <span class="heading-spark">✳</span></h2></div><button class="text-link" data-goto="activity">Full history <span aria-hidden="true">↗</span></button></div><div id="recentRail" class="poster-rail"></div></section>
+        <section class="content-section" aria-labelledby="series-heading"><div class="section-head"><div><div class="section-kicker">THE LONG STORIES</div><h2 id="series-heading">Series on the shelf</h2><p class="section-sub">A look at the shows I’ve spent the most time with.</p></div><button class="text-link" data-goto="shows">All shows <span aria-hidden="true">↗</span></button></div><div id="seriesRail" class="poster-grid home-grid"></div></section>
+        <section class="content-section month-section" aria-labelledby="month-heading"><div class="section-head"><div><div class="section-kicker">THE PATTERN</div><h2 id="month-heading">The watch calendar</h2><p class="section-sub">Movies and episodes recorded each month. Dates may reflect bulk imports.</p></div></div><div id="monthlyChart" class="month-chart" role="img" aria-label="Monthly viewing activity"></div></section>
+      </section>
+
+      <section id="view-movies" class="view" aria-labelledby="movies-heading"><div class="page-banner"><div class="section-kicker">THE FILM ARCHIVE</div><h1 id="movies-heading">The movies.</h1><p>Every movie on the record, from old favorites to the latest watch.</p></div><div class="browse-controls"><div class="search-wrap"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input id="movieSearch" type="search" placeholder="Find a movie..." aria-label="Search movies"/></div><select id="movieSort" aria-label="Sort movies"><option value="recent">Recently watched</option><option value="alpha">Title A–Z</option><option value="oldest">Oldest first</option></select><span class="result-count" id="movieCount"></span></div><div id="moviesGrid" class="poster-grid browse-grid"></div></section>
+      <section id="view-shows" class="view" aria-labelledby="shows-heading"><div class="page-banner"><div class="section-kicker">SERIES ARCHIVE</div><h1 id="shows-heading">The shows.</h1><p>Every series, every season, every episode that made the list.</p></div><div class="browse-controls"><div class="search-wrap"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input id="showSearch" type="search" placeholder="Find a TV show..." aria-label="Search TV shows"/></div><select id="showSort" aria-label="Sort TV shows"><option value="recent">Recently watched</option><option value="most">Most episodes</option><option value="alpha">Title A–Z</option></select><span class="result-count" id="showCount"></span></div><div id="showsGrid" class="poster-grid browse-grid"></div></section>
+      <section id="view-activity" class="view" aria-labelledby="history-heading"><div class="page-banner"><div class="section-kicker">WATCH JOURNAL</div><h1 id="history-heading">The timeline.</h1><p>Recent movie nights and episodes, newest first.</p></div><div class="browse-controls"><div class="filter-pills" role="group" aria-label="History filter"><button class="filter-pill active" data-history-filter="all">Everything</button><button class="filter-pill" data-history-filter="movie">Movies</button><button class="filter-pill" data-history-filter="episode">Episodes</button></div><span class="result-count" id="activityCount"></span></div><div id="activityList" class="activity-list"></div><button id="loadMore" class="button button-outline load-more">Show more history ↓</button></section>
+    </main>
+
+    <footer class="footer"><div><span class="footer-brand">SCREEN<span>LOG</span>.</span><p>A personal record of good stories and time well spent.</p></div><div class="footer-right"><a href="https://app.trakt.tv/profile/kfg72?mode=media" rel="noopener" target="_blank">Find me on Trakt ↗</a><span id="footerDate"></span><small>Screen Log uses Trakt but is not endorsed or certified by Trakt.</small></div></footer>
+  </div>
+
+  <div id="detailBackdrop" class="detail-backdrop" hidden></div>
+  <aside id="detailPanel" class="detail-panel" role="dialog" aria-modal="true" aria-label="Media details" hidden><div id="detailContent"></div></aside>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
