@@ -149,6 +149,39 @@ def build(movies_history,episode_history,previous):
             'live':True,'movies':output_movies,'shows':output_shows}
 
 
+def add_ratings(snapshot, api_key):
+    """Enrich titles using OMDb. Never expose the key in published data."""
+    if not api_key:
+        print('OMDB_API_KEY missing; ratings will remain unavailable.')
+        return
+    for kind in ('movies', 'shows'):
+        for item in snapshot[kind]:
+            imdb_id = item.get('id', '')
+            if not re.fullmatch(r'tt\\d+', imdb_id):
+                continue
+            try:
+                query = urllib.parse.urlencode({'apikey': api_key, 'i': imdb_id})
+                req = urllib.request.Request('https://www.omdbapi.com/?' + query,
+                                             headers={'User-Agent': 'ScreenLogPersonalSite/1.0'})
+                with urllib.request.urlopen(req, timeout=15) as response:
+                    info = json.loads(response.read())
+                if info.get('Response') != 'True':
+                    continue
+                score = info.get('imdbRating')
+                if score and score != 'N/A':
+                    item['imdbRating'] = score
+                for rating in info.get('Ratings', []):
+                    if rating.get('Source') == 'Rotten Tomatoes':
+                        value = rating.get('Value', '')
+                        if re.fullmatch(r'\\d{1,3}%', value):
+                            item['rottenTomatoes'] = value
+                # OMDb does not reliably provide an RT title URL.
+                # Link to a title search rather than guessing a slug.
+            except (urllib.error.URLError, TimeoutError, ValueError) as exc:
+                print(f'Ratings unavailable for {imdb_id}: {type(exc).__name__}')
+            time.sleep(0.06)
+
+
 def main():
     client_id=os.getenv('TRAKT_CLIENT_ID','').strip()
     if not client_id:
@@ -159,7 +192,7 @@ def main():
     eh=history(client_id,'episodes')
     if not mh or not eh:
         raise RuntimeError('Trakt returned empty or incomplete watch history. Existing site data is preserved.')
-    new=build(mh,eh,prev)
+    new=build(mh,eh,prev)\n    add_ratings(new, os.getenv('OMDB_API_KEY','').strip())
     before=len(prev.get('movies',[]))+sum(len(s['episodes']) for s in prev.get('shows',[]))
     after=len(new['movies'])+sum(len(s['episodes']) for s in new['shows'])
     # Safety guard for an accidental missing page, or API/profile access regression.
