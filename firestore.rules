@@ -6,11 +6,10 @@ service cloud.firestore {
       allow get: if true;
       allow list: if false;
 
-      // Replace this placeholder with the Firebase Authentication UID for your Google account.
-      // Do NOT replace it with an email address or the Firebase API key.
+      // Only the designated Firebase Authentication user may modify reviews.
       function isOwner() {
         return request.auth != null &&
-          request.auth.uid == 'REPLACE_WITH_YOUR_FIREBASE_AUTH_UID';
+          request.auth.uid == 'KBDmmJuE1eTNVEKhLRBlKMDX9QE3';
       }
 
       function validReview() {
