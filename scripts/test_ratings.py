@@ -11,6 +11,33 @@ class TVScoreParsingTests(unittest.TestCase):
           "overlay":{"mediaType":"TvSeries"}}</script></html>'''
         self.assertEqual(parse_tv_critic_score(html), (True, '96%'))
 
+    def test_live_rt_series_score_percent_format(self):
+        # Actual field names from a Nov 12 RT series page response.
+        html = ('<script id="media-scorecard-json" type="application/json">'
+                '{"audienceScore":{"scorePercent":"97%"},'
+                '"criticsScore":{"scorePercent":"96%","reviewCount":250,'
+                '"title":"Avg. Tomatometer"},'
+                '"overlay":{"mediaType":"TvSeries"}}'
+                '</script>')
+        self.assertEqual(parse_tv_critic_score(html), (True, '96%'))
+
+    def test_does_not_confuse_audience_for_critic_score(self):
+        html = ('<script id="media-scorecard-json">'
+                '{"audienceScore":{"scorePercent":"97%"},'
+                '"criticsScore":{"scorePercent":""},'
+                '"overlay":{"mediaType":"TvSeries"}}'
+                '</script>')
+        self.assertEqual(parse_tv_critic_score(html), (True, None))
+
+    def test_zero_and_out_of_range_scores(self):
+        for score, expected in [('0%', '0%'), ('100%', '100%'),
+                                ('101%', None), ('abc', None)]:
+            html = ('<script id="media-scorecard-json">'
+                    '{"criticsScore":{"scorePercent":"' + score + '"},'
+                    '"overlay":{"mediaType":"TvSeries"}}'
+                    '</script>')
+            self.assertEqual(parse_tv_critic_score(html), (True, expected))
+
     def test_no_reviews_is_not_zero(self):
         html = '<script id="media-scorecard-json">{"criticsScore":{"reviewCount":0},"overlay":{"mediaType":"TvSeries"}}</script>'
         self.assertEqual(parse_tv_critic_score(html), (True, None))

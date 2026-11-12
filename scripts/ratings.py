@@ -241,13 +241,21 @@ def parse_tv_critic_score(page):
     media_type = (data.get('overlay') or {}).get('mediaType')
     if media_type and media_type not in ('TvSeries', 'TVSeries'):
         return True, None
-    score = (data.get('criticsScore') or {}).get('score')
+    critics = data.get('criticsScore') or {}
+    # Live Rotten Tomatoes pages use scorePercent ("96%"), not score.
+    # Retain score compatibility for older page variants.
+    score = critics.get('scorePercent')
+    if score is None or score == '':
+        score = critics.get('score')
     if score is None or score == '':
         return True, None
-    value = str(score)
-    if not re.fullmatch(r'\d{1,3}', value) or int(value) > 100:
+    value = str(score).strip()
+    if not re.fullmatch(r'\d{1,3}%?', value):
         return True, None
-    return True, value + '%'
+    numeric = int(value.rstrip('%'))
+    if numeric > 100:
+        return True, None
+    return True, str(numeric) + '%'
 
 
 def add_tv_rt_scores(snapshot, cache):
@@ -262,7 +270,9 @@ def add_tv_rt_scores(snapshot, cache):
         url = record.get('rottenTomatoesUrl') or ''
         if not re.fullmatch(r'https://www\.rottentomatoes\.com/tv/[a-zA-Z0-9_-]+', url):
             continue
-        if within_days(record.get('rtTvCheckedOn'), 14):
+        # v1 marked every page checked despite looking at an outdated JSON
+        # field. Retry those misses once using the corrected v2 parser.
+        if within_days(record.get('rtTvCheckedOn'), 14) and record.get('rtTvParserVersion') == 2:
             continue
         if stats['attempted'] >= 110:
             break
@@ -290,6 +300,7 @@ def add_tv_rt_scores(snapshot, cache):
             else:
                 stats['no_score'] += 1
             record['rtTvCheckedOn'] = TODAY
+            record['rtTvParserVersion'] = 2
         except urllib.error.HTTPError as exc:
             print(f'RT TV score retrieval HTTP {exc.code} for {imdb}')
             if exc.code in (403, 429):
@@ -320,3 +331,6 @@ def enrich(snapshot, omdb_key):
             stats['links'] += bool(item.get('rottenTomatoesUrl'))
     CACHE.write_text(json.dumps(cache, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
     print('Ratings coverage with cache: ' + ', '.join(f'{k}={v}' for k, v in stats.items()))
+    print('Rotten Tomatoes coverage by type: movies={}/{}, shows={}/{}'.format(
+        sum(bool(m.get('rottenTomatoes')) for m in snapshot['movies']), len(snapshot['movies']),
+        sum(bool(s.get('rottenTomatoes')) for s in snapshot['shows']), len(snapshot['shows'])))
