@@ -134,6 +134,7 @@
     html+=ratingMarkup(item);
     const overview = typeof item.overview === 'string' ? item.overview.trim() : '';
     html+='<section class="detail-overview"><h3>'+(isShow?'Series overview':'Plot summary')+'</h3><p>'+esc(overview||'Summary not available yet.')+'</p></section>';
+    html+='<section class="personal-review" aria-label="Personal review"><h3>My Thoughts</h3><div id="personalReviewContent"><p class="review-muted">Loading personal review…</p></div></section>';
     if(isShow){
       html+=`<div class="detail-metric"><div><div class="detail-number">${item.episodes.length}</div><div class="detail-label">Episodes logged</div></div><div><div class="detail-number">${new Set(item.episodes.map(e=>e.season)).size}</div><div class="detail-label">Seasons represented</div></div></div>`;
       const seasons=[...new Set(item.episodes.map(e=>e.season))].sort((a,b)=>b-a);
@@ -149,11 +150,13 @@
     if(/^tt\d+$/.test(id))html+=`<a class="detail-link" href="https://www.imdb.com/title/${encodeURIComponent(id)}/" target="_blank" rel="noopener">View on IMDb ↗</a>`;
     html+='</div>';
     $('#detailContent').innerHTML=html;
+    window.ScreenLogReviews?.open(kind,item);
     $('#detailBackdrop').hidden=false;$('#detailPanel').hidden=false;
     document.body.style.overflow='hidden';
     $('.detail-close').focus();
   }
   function closeDetail(){
+    window.ScreenLogReviews?.close();
     $('#detailBackdrop').hidden=true;$('#detailPanel').hidden=true;
     document.body.style.overflow='';
     if(lastFocused && typeof lastFocused.focus==='function')lastFocused.focus();

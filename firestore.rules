@@ -1,0 +1,44 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /reviews/{reviewId} {
+      // Public visitors may read one review by media ID, not enumerate the collection.
+      allow get: if true;
+      allow list: if false;
+
+      // Replace this placeholder with the Firebase Authentication UID for your Google account.
+      // Do NOT replace it with an email address or the Firebase API key.
+      function isOwner() {
+        return request.auth != null &&
+          request.auth.uid == 'REPLACE_WITH_YOUR_FIREBASE_AUTH_UID';
+      }
+
+      function validReview() {
+        return reviewId.matches('^(movie|show)_(tt[0-9]+|trakt-[0-9]+)$')
+          && request.resource.data.keys().hasAll([
+            'body', 'stars', 'kind', 'mediaId', 'title', 'updatedAt'
+          ])
+          && request.resource.data.keys().hasOnly([
+            'body', 'stars', 'kind', 'mediaId', 'title', 'updatedAt'
+          ])
+          && request.resource.data.body is string
+          && request.resource.data.body.size() >= 1
+          && request.resource.data.body.size() <= 3000
+          && request.resource.data.stars is int
+          && request.resource.data.stars >= 0
+          && request.resource.data.stars <= 5
+          && request.resource.data.kind in ['movie', 'show']
+          && request.resource.data.mediaId is string
+          && request.resource.data.mediaId.matches('^(tt[0-9]+|trakt-[0-9]+)$')
+          && reviewId == (request.resource.data.kind + '_' + request.resource.data.mediaId)
+          && request.resource.data.title is string
+          && request.resource.data.title.size() >= 1
+          && request.resource.data.title.size() <= 150
+          && request.resource.data.updatedAt is timestamp;
+      }
+
+      allow create, update: if isOwner() && validReview();
+      allow delete: if isOwner();
+    }
+  }
+}
