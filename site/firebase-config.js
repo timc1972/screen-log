@@ -7,5 +7,5 @@ window.SCREENLOG_REVIEW_CONFIG = {
   authDomain: "screenlog-reviews.firebaseapp.com",
   projectId: "screenlog-reviews",
   appId: "1:554820595167:web:204f668b5b57d024d5686a",
-  ownerUid: ""
+  ownerUid: "KBDmmJuE1eTNVEKhLRBlKMDX9QE3"
 };
