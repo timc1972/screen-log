@@ -106,10 +106,28 @@
     selected.slice(0,displayCount).forEach(x=>{
       const date=new Date(x.watchedAt).toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
       if(date!==last){html+=`<div class="day-head">${esc(date)}</div>`;last=date}
-      const isMovie=x.kind==='movie';const label=isMovie?x.title:x.showTitle;
-      const title=isMovie?x.title:(x.title&&x.title!==x.showTitle?`${x.title}`:`Season ${x.season}, episode ${x.episode}`);
-      const detail=isMovie?'Movie watched':`${x.showTitle} · S${String(x.season).padStart(2,'0')}E${String(x.episode).padStart(2,'0')}`;
-      html+=`<div class="activity-row"><div class="activity-thumb" style="background:linear-gradient(135deg,${colorFor(x.id||x.showId)[0]},${colorFor(x.id||x.showId)[1]})">${x.poster?`<img src="${esc(x.poster)}" alt="" loading="lazy">`:''}</div><div style="min-width:0"><div class="activity-title">${esc(title)}</div><div class="activity-sub">${esc(detail)} <span class="activity-type">${isMovie?'FILM':'EPISODE'}</span></div></div><time datetime="${esc(x.watchedAt)}">${esc(new Date(x.watchedAt).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}))}</time></div>`;
+      const isMovie=x.kind==='movie';
+      const kind=isMovie?'movie':'show';
+      const mediaId=isMovie?x.id:x.showId;
+      const mediaTitle=isMovie?x.title:x.showTitle;
+      const episodeTitle=!isMovie
+        ?(x.title&&x.title!==x.showTitle?x.title:`Season ${x.season}, episode ${x.episode}`)
+        :'';
+      const detail=isMovie?'Movie watched':`S${String(x.season).padStart(2,'0')}E${String(x.episode).padStart(2,'0')}`;
+      const [g1,g2]=colorFor(mediaId);
+      const openAttrs=`data-open="${kind}" data-id="${esc(mediaId)}"`;
+      const poster=x.poster?`<img src="${esc(x.poster)}" alt="" loading="lazy">`:'';
+      html+=`<div class="activity-row">
+        <button type="button" class="activity-poster-link" ${openAttrs} aria-label="Open ${esc(mediaTitle)} details">
+          <span class="activity-thumb" style="background:linear-gradient(135deg,${g1},${g2})">${poster}</span>
+        </button>
+        <div class="activity-content">
+          <button type="button" class="activity-title-link" ${openAttrs}>${esc(mediaTitle)}</button>
+          ${episodeTitle?`<div class="activity-episode-title">${esc(episodeTitle)}</div>`:''}
+          <div class="activity-sub">${esc(detail)} <span class="activity-type">${isMovie?'FILM':'EPISODE'}</span></div>
+        </div>
+        <time datetime="${esc(x.watchedAt)}">${esc(new Date(x.watchedAt).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}))}</time>
+      </div>`;
     });
     $('#activityList').innerHTML=html||'<div class="empty">Nothing in this category yet.</div>';
     $('#loadMore').hidden=selected.length<=displayCount;
