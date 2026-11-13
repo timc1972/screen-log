@@ -69,8 +69,12 @@
       const label=new Date(key+'-01T12:00:00Z').toLocaleDateString('en-US',{month:'short'});
       return `<div class="month-col" title="${esc(key)}: ${value} plays"><div class="month-val">${value}</div><div class="month-plot"><div class="month-bar" style="height:${Math.max(3,value/max*100)}%"></div></div><div class="month-label">${esc(label)}</div></div>`;
     }).join('');
-    $('#syncStatus').textContent=data.live?'Synced with Trakt · '+shortDate(data.updatedAt):'Imported from Nuvio · '+shortDate(data.updatedAt);
-    $('#footerDate').textContent='Last updated '+longDate(data.updatedAt);
+    const syncedAt=new Date(data.updatedAt).toLocaleString('en-US',{
+      timeZone:'America/New_York',month:'short',day:'numeric',year:'numeric',
+      hour:'numeric',minute:'2-digit',timeZoneName:'short'
+    });
+    $('#syncStatus').textContent=(data.live?'Synced with Trakt · ':'Imported from Nuvio · ')+syncedAt;
+    $('#footerDate').textContent='Last synced '+syncedAt;
     attachImages($('#view-home'));
   }
   function renderMovies(){
