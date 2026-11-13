@@ -33,6 +33,23 @@ jobs:
           key: screenlog-ratings-v1-${{ github.run_id }}
           restore-keys: |
             screenlog-ratings-v1-
+      - name: Restore persisted watch archive
+        uses: actions/cache@v4
+        with:
+          path: scripts/watch-history-cache.json
+          key: screenlog-history-v1-${{ github.run_id }}
+          restore-keys: |
+            screenlog-history-v1-
+      - name: Bootstrap verified watch history
+        if: ${{ hashFiles('scripts/watch-history-cache.json') == '' }}
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: github-pages
+          repository: timc1972/screen-log
+          run-id: 43439966499
+          github-token: ${{ github.token }}
+          path: .history-bootstrap
       - name: Check whether ratings need recovery
         id: rating-check
         run: |

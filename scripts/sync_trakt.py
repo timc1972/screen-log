@@ -6,7 +6,8 @@ Actions secret (TRAKT_CLIENT_ID), never in site/ or source control.
 No password, OAuth token, client secret, or add-on configuration is needed
 when the target Trakt profile/history is public.
 """
-import json, os, re, time, urllib.error, urllib.parse, urllib.request
+import json, os, re, tarfile, time, urllib.error, urllib.parse, urllib.request
+from copy import deepcopy
 from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -16,16 +17,75 @@ from ratings import enrich
 ROOT=Path(__file__).resolve().parent.parent
 DATA=ROOT/'site'/'data.js'
 POSTERS=ROOT/'site'/'posters'
+HISTORY_CACHE=ROOT/'scripts'/'watch-history-cache.json'
+HISTORY_BOOTSTRAP=ROOT/'.history-bootstrap'/'artifact.tar'
 USER='kfg72'
 API='https://api.trakt.tv'
 
 
-def load_snapshot():
-    text=DATA.read_text(encoding='utf-8').strip()
-    if not text.startswith('window.SCREENLOG_DATA = '):
-        raise RuntimeError('Existing data.js has unexpected format')
-    return json.loads(text[len('window.SCREENLOG_DATA = '):].rstrip(';'))
+def parse_history_snapshot(raw):
+    """Read only snapshots belonging to this Trakt profile."""
+    if isinstance(raw, bytes):
+        raw = raw.decode('utf-8')
+    prefix = 'window.SCREENLOG_DATA = '
+    if not raw.lstrip().startswith(prefix):
+        raise ValueError('Unexpected ScreenLog history format')
+    payload = json.loads(raw.strip()[len(prefix):].rstrip(';'))
+    return check_history_snapshot(payload)
 
+
+def check_history_snapshot(snapshot):
+    if not isinstance(snapshot, dict) or (snapshot.get('profile') or {}).get('username') != USER:
+        raise ValueError('Watch history is not for the configured Trakt account')
+    if not isinstance(snapshot.get('movies'), list) or not isinstance(snapshot.get('shows'), list):
+        raise ValueError('Watch history is missing movie or show records')
+    if not snapshot['movies'] or not snapshot['shows']:
+        raise ValueError('Watch history snapshot appears empty')
+    return snapshot
+
+
+def load_snapshot():
+    """Use the last successful published watch archive, not stale repo data.js.
+
+    The archive survives runs in an Actions cache. A verified deployment artifact
+    seeds it initially; the live site's snapshot is a recovery fallback.
+    Fail closed if none is available so a sync cannot erase the archive.
+    """
+    if HISTORY_CACHE.exists():
+        try:
+            snapshot = check_history_snapshot(json.loads(HISTORY_CACHE.read_text(encoding='utf-8')))
+        except (OSError, ValueError, TypeError) as exc:
+            raise RuntimeError('Persisted ScreenLog history cache is invalid; refusing to overwrite it') from exc
+        print('Watch archive loaded from Actions cache: {} movies, {} shows, {} episodes'.format(
+            len(snapshot['movies']), len(snapshot['shows']),
+            sum(len(show.get('episodes', [])) for show in snapshot['shows'])))
+        return snapshot
+    if HISTORY_BOOTSTRAP.is_file():
+        try:
+            with tarfile.open(HISTORY_BOOTSTRAP, mode='r:*') as bundle:
+                member = next(m for m in bundle.getmembers()
+                              if m.name.lstrip('./') == 'data.js' and m.isfile())
+                raw = bundle.extractfile(member).read()
+            snapshot = parse_history_snapshot(raw)
+            print('Watch archive bootstrapped from verified Nov 13 deployment: {} episodes'.format(
+                sum(len(show.get('episodes', [])) for show in snapshot['shows'])))
+            return snapshot
+        except (OSError, ValueError, KeyError, StopIteration, tarfile.TarError) as exc:
+            raise RuntimeError('Verified ScreenLog history bootstrap is corrupt') from exc
+    # Handles an evicted cache after the initial seed artifact has expired.
+    url = 'https://timc1972.github.io/screen-log/data.js?archive-refresh=' + str(int(time.time()))
+    try:
+        request = urllib.request.Request(url, headers={'User-Agent': 'ScreenLogHistoryArchive/1.0',
+                                                       'Cache-Control': 'no-cache'})
+        with urllib.request.urlopen(request, timeout=25) as response:
+            raw = response.read(10_000_001)
+        if len(raw) > 10_000_000:
+            raise ValueError('Published history is too large')
+        snapshot = parse_history_snapshot(raw)
+        print('Watch archive recovered from currently published ScreenLog site.')
+        return snapshot
+    except (OSError, urllib.error.URLError, ValueError) as exc:
+        raise RuntimeError('No trustworthy prior watch history available; refusing to discard watches') from exc
 
 def request(url,client_id):
     headers={'Content-Type':'application/json','trakt-api-key':client_id,
@@ -113,6 +173,62 @@ def local_poster(obj,kind,key):
     return 'posters/'+dest.name
 
 
+def merge_archive(current, previous):
+    """Never silently drop previously confirmed watches on a partial Trakt response.
+
+    Trakt remains authoritative for newer dates, but absence alone is not
+    treated as deletion. An explicit archive-removal feature would be required
+    if the owner intentionally wants to unwatch a title.
+    """
+    stats = {'movies': 0, 'shows': 0, 'episodes': 0}
+    existing_movies = {str(item['id']): item for item in current['movies']}
+    for prior in previous.get('movies', []):
+        if not isinstance(prior, dict) or not prior.get('id'):
+            continue
+        ident = str(prior['id'])
+        item = existing_movies.get(ident)
+        if item is None:
+            current['movies'].append(deepcopy(prior))
+            existing_movies[ident] = current['movies'][-1]
+            stats['movies'] += 1
+        else:
+            if prior.get('watchedAt', '') > item.get('watchedAt', ''):
+                item['watchedAt'] = prior['watchedAt']
+            item['watches'] = max(item.get('watches', 1), prior.get('watches', 1))
+    current['movies'].sort(key=lambda item: item.get('watchedAt', ''), reverse=True)
+
+    existing_shows = {str(item['id']): item for item in current['shows']}
+    for prior in previous.get('shows', []):
+        if not isinstance(prior, dict) or not prior.get('id'):
+            continue
+        ident = str(prior['id'])
+        item = existing_shows.get(ident)
+        if item is None:
+            item = deepcopy(prior)
+            current['shows'].append(item)
+            existing_shows[ident] = item
+            stats['shows'] += 1
+            stats['episodes'] += len(item.get('episodes') or [])
+            continue
+        episodes = {(ep['season'], ep['episode']): ep for ep in item.get('episodes', [])}
+        for old in prior.get('episodes', []):
+            key = (old['season'], old['episode'])
+            if key not in episodes:
+                episodes[key] = deepcopy(old)
+                stats['episodes'] += 1
+            elif old.get('watchedAt', '') > episodes[key].get('watchedAt', ''):
+                episodes[key]['watchedAt'] = old['watchedAt']
+                if not episodes[key].get('title'):
+                    episodes[key]['title'] = old.get('title', '')
+        item['episodes'] = sorted(episodes.values(), key=lambda ep: (ep['season'], ep['episode']))
+        if item['episodes']:
+            item['lastWatchedAt'] = max(ep['watchedAt'] for ep in item['episodes'])
+    current['shows'].sort(key=lambda item: item.get('lastWatchedAt', ''), reverse=True)
+    print('Watch archive preserved missing records: ' +
+          ', '.join('{}={}'.format(key, value) for key, value in stats.items()))
+    return current
+
+
 def build(movies_history,episode_history,previous):
     old_movies={x['id']:x for x in previous.get('movies',[])}
     old_shows={x['id']:x for x in previous.get('shows',[])}
@@ -179,7 +295,7 @@ def main():
     eh=history(client_id,'episodes')
     if not mh or not eh:
         raise RuntimeError('Trakt returned empty or incomplete watch history. Existing site data is preserved.')
-    new=build(mh,eh,prev)
+    new=merge_archive(build(mh,eh,prev), prev)
     enrich(new, os.getenv('OMDB_API_KEY','').strip())
     before=len(prev.get('movies',[]))+sum(len(s['episodes']) for s in prev.get('shows',[]))
     after=len(new['movies'])+sum(len(s['episodes']) for s in new['shows'])
@@ -187,6 +303,7 @@ def main():
     if before>100 and after<before*0.6:
         raise RuntimeError(f'Refusing to replace {before} existing watched items with only {after}; existing site data is preserved.')
     DATA.write_text('window.SCREENLOG_DATA = '+json.dumps(new,ensure_ascii=False,separators=(',',':'))+';\n',encoding='utf-8')
+    HISTORY_CACHE.write_text(json.dumps(new, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
     print(f'Screen Log synced: {len(new["movies"])} movies, {len(new["shows"])} shows, {sum(len(s["episodes"]) for s in new["shows"])} unique episodes')
     print(f'Synopsis coverage: movies={sum(bool(m.get("overview")) for m in new["movies"])}/{len(new["movies"])}, shows={sum(bool(s.get("overview")) for s in new["shows"])}/{len(new["shows"])}')
 
